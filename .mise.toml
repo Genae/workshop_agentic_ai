@@ -1,0 +1,12 @@
+[tools]
+dotnet = "10"
+lefthook = "latest"
+gitleaks = "latest"
+
+[tasks.setup]
+description = "First-time setup: restore packages and install git hooks"
+run = "dotnet restore PaperClaw/PaperClaw.sln && lefthook install"
+
+[tasks.check]
+description = "Format-check + build + test in one go (same as pre-commit + pre-push)"
+run = "dotnet format PaperClaw/PaperClaw.sln --verify-no-changes --no-restore && dotnet build PaperClaw/PaperClaw.sln --nologo && dotnet test PaperClaw/PaperClaw.sln --nologo -q --no-build"

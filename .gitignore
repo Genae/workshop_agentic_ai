@@ -39,6 +39,9 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# lefthook local overrides
+lefthook-local.yml
+
 # Others
 ~$*
 *~

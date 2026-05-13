@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project
 
@@ -8,11 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## First-time setup
 
-After cloning, activate the pre-commit hooks:
+After cloning, copy `.env.example` to `.env`, fill in your secrets, then install the
+git hooks:
 
 ```bash
-git config core.hooksPath .githooks
+cp .env.example .env
+dotnet restore PaperClaw/PaperClaw.sln
+lefthook install
 ```
+
+`lefthook` is available via `npm install -g @evilmartians/lefthook` or via `.mise.toml`
+if you have [mise](https://mise.jdx.dev/) installed (`mise install && mise run setup`).
 
 ## Commands
 
@@ -43,24 +49,11 @@ dotnet add PaperClaw/PaperClaw package <PackageName>
 
 ## Pre-commit hook
 
-`.githooks/pre-commit` runs on every commit: build → format check → tests. All three must pass. Fix format issues with `dotnet format PaperClaw/PaperClaw.sln` before committing.
+`lefthook.yml` wires up two hooks:
+- **pre-commit** (parallel): gitleaks secret scan · format check · build
+- **pre-push**: full test suite
 
-## Architecture
+Fix format issues with `dotnet format PaperClaw/PaperClaw.sln` before committing.
+Run `mise run check` (or manually: format-check + build + test) to validate everything at once.
 
-- **Entry point:** `PaperClaw/PaperClaw/Program.cs`
-- **Tests:** `PaperClaw/PaperClaw.Tests/` (NUnit)
-- **Library:** `Library/<category>/` — PDFs land here alongside their `.md` transcripts. PDFs are git-ignored (potentially sensitive); `.md` files are tracked.
-- **Formatting rules:** `.editorconfig` at repo root; enforced by `dotnet format`.
-
-Key planned components (not yet implemented): `EmailPoller` (MailKit/IMAP), `PdfProcessor` (PdfPig + Claude vision fallback), `Classifier` (Claude API), `LibraryWriter`.
-
-## Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `ANTHROPIC_API_KEY` | Claude API |
-| `PAPERCLAW_IMAP_HOST` | IMAP server |
-| `PAPERCLAW_IMAP_PORT` | IMAP port (default 993) |
-| `PAPERCLAW_IMAP_USER` | Mailbox username |
-| `PAPERCLAW_IMAP_PASSWORD` | Mailbox password |
-| `PAPERCLAW_LIBRARY_PATH` | Absolute path to the library root |
+Check the DESIGN.md for architecture information

@@ -2,7 +2,7 @@
 
 ## What it does
 
-PaperClaw polls an IMAP mailbox for incoming emails with PDF attachments. Each PDF is sent to the Claude API for content extraction and categorization. The result is stored in a local library as the original PDF alongside a `.md` transcript, organized by sender category.
+PaperClaw polls an IMAP mailbox for incoming emails with PDF attachments. Each PDF is sent to the Claude API for content extraction and categorization. The result is stored in a local library as the original PDF alongside a `.md` transcript, organized by document category.
 
 ## Stack
 
@@ -16,9 +16,18 @@ PaperClaw polls an IMAP mailbox for incoming emails with PDF attachments. Each P
 
 ## Architecture
 
+## Architecture
+
+- **Entry point:** `PaperClaw/PaperClaw/Program.cs`
+- **Tests:** `PaperClaw/PaperClaw.Tests/` (NUnit)
+- **Library:** `Library/<category>/` — PDFs land here alongside their `.md` transcripts. PDFs are git-ignored (potentially sensitive); `.md` files are tracked.
+- **Formatting rules:** `.editorconfig` at repo root; enforced by `dotnet format`.
+
+Key planned components (not yet implemented): `EmailPoller` (MailKit/IMAP), `PdfProcessor` (PdfPig + Claude vision fallback), `Classifier` (Claude API), `LibraryWriter`.
+
 ```
 IMAP Mailbox
-     │  (poll on schedule, fetch unseen messages with PDF attachments)
+     │  (poll on request, fetch unseen messages with PDF attachments)
      ▼
 EmailPoller
      │
@@ -60,6 +69,5 @@ All secrets are supplied via environment variables — never committed.
 
 - Credentials are read exclusively from environment variables; no config files containing secrets are committed.
 - PDFs may contain sensitive financial or personal data. They are stored locally only. The only external service that receives document content is the Claude API for transcription.
-- The library directory should be excluded from cloud sync (Dropbox, OneDrive, etc.) if it contains sensitive documents.
 - Processed email UIDs are tracked locally to avoid reprocessing; no email content is retained beyond what is written to the library.
 - Logging records file names and processing status only — never document content.

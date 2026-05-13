@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    gitleaks:
+      run: gitleaks protect --staged --no-banner --redact
+    format:
+      glob: "**/*.cs"
+      run: dotnet format PaperClaw/PaperClaw.sln --verify-no-changes --no-restore
+    build:
+      run: dotnet build PaperClaw/PaperClaw.sln --nologo
+
+pre-push:
+  commands:
+    test:
+      run: dotnet test PaperClaw/PaperClaw.sln --nologo -q --no-build
