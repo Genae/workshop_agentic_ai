@@ -1,4 +1,4 @@
-﻿namespace PaperClaw.Tests;
+namespace PaperClaw.Tests;
 
 public class Tests
 {

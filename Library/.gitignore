@@ -1,0 +1,2 @@
+# Track .md transcripts but not the PDFs themselves (can be large / sensitive)
+*.pdf

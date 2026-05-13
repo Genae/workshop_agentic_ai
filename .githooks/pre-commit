@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+echo ">> build + typecheck"
+dotnet build PaperClaw/PaperClaw.sln --nologo
+
+echo ">> format check"
+dotnet format PaperClaw/PaperClaw.sln --verify-no-changes --no-restore
+
+echo ">> tests"
+dotnet test PaperClaw/PaperClaw.sln --nologo -q --no-build
