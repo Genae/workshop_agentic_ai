@@ -4,7 +4,46 @@ using Microsoft.Extensions.Logging;
 
 using PaperClaw;
 
+LoadDotEnv();
 var config = AppConfig.LoadFromEnvironment();
+
+// Loads .env from the repo root (or any ancestor directory) into the process environment.
+// Variables already set in the environment take precedence, so this is a no-op in production.
+static void LoadDotEnv()
+{
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, ".env");
+        if (File.Exists(candidate))
+        {
+            foreach (var line in File.ReadAllLines(candidate))
+            {
+                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+                {
+                    continue;
+                }
+
+                var eq = line.IndexOf('=');
+                if (eq <= 0)
+                {
+                    continue;
+                }
+
+                var key = line[..eq].Trim();
+                var value = line[(eq + 1)..].Trim();
+                if (!string.IsNullOrEmpty(key) && Environment.GetEnvironmentVariable(key) is null)
+                {
+                    Environment.SetEnvironmentVariable(key, value);
+                }
+            }
+
+            return;
+        }
+
+        dir = dir.Parent;
+    }
+}
 
 using var loggerFactory = LoggerFactory.Create(builder =>
     builder.AddConsole().SetMinimumLevel(config.LogLevel));
