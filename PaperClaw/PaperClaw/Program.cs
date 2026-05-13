@@ -14,6 +14,17 @@ switch (command)
         await RunIngestAsync();
         break;
 
+    case "import":
+        var importPath = args.Length > 1 ? args[1] : string.Empty;
+        if (string.IsNullOrEmpty(importPath))
+        {
+            Console.Error.WriteLine("Usage: paperclaw import <path>");
+            Environment.Exit(1);
+        }
+
+        await RunImportAsync(importPath);
+        break;
+
     case "search":
         var query = string.Join(" ", args.Skip(1)).Trim();
         if (string.IsNullOrEmpty(query))
@@ -26,9 +37,10 @@ switch (command)
         break;
 
     default:
-        Console.Error.WriteLine("Usage: paperclaw [ingest|search <query>]");
-        Console.Error.WriteLine("  ingest         Poll IMAP and process new PDFs (default)");
-        Console.Error.WriteLine("  search <query> Search the library using Claude");
+        Console.Error.WriteLine("Usage: paperclaw [ingest|import <path>|search <query>]");
+        Console.Error.WriteLine("  ingest          Poll IMAP and process new PDFs (default)");
+        Console.Error.WriteLine("  import <path>   Import a local PDF file or folder into the library");
+        Console.Error.WriteLine("  search <query>  Search the library using Claude");
         Environment.Exit(1);
         break;
 }
@@ -77,6 +89,66 @@ async Task RunIngestAsync()
     }
 
     logger.LogInformation("Done. {Processed} processed, {Skipped} skipped.", processed, skipped);
+}
+
+// ── Import mode ───────────────────────────────────────────────────────────────
+
+async Task RunImportAsync(string path)
+{
+    var config = SearchConfig.LoadFromEnvironment();
+    using var loggerFactory = LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(config.LogLevel));
+    var logger = loggerFactory.CreateLogger("PaperClaw");
+    var claude = new AnthropicClient();
+
+    var processor = new PdfProcessor(claude, loggerFactory.CreateLogger<PdfProcessor>());
+    var classifier = new Classifier(claude, loggerFactory.CreateLogger<Classifier>());
+    var writer = new LibraryWriter(config.LibraryPath, loggerFactory.CreateLogger<LibraryWriter>());
+
+    IEnumerable<string> files;
+    if (Directory.Exists(path))
+        files = Directory.GetFiles(path, "*.pdf", SearchOption.TopDirectoryOnly);
+    else if (File.Exists(path))
+        files = [path];
+    else
+    {
+        Console.Error.WriteLine($"Path not found: {path}");
+        Environment.Exit(1);
+        return;
+    }
+
+    var pdfFiles = files.OrderBy(f => f).ToList();
+    if (pdfFiles.Count == 0)
+    {
+        logger.LogInformation("No PDF files found at {Path}", path);
+        return;
+    }
+
+    var processed = 0;
+    foreach (var file in pdfFiles)
+    {
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(file);
+            var attachment = new PdfAttachment(Path.GetFileName(file), bytes);
+            var email = new EmailMessage(
+                Uid: 0,
+                Sender: "local-import",
+                Date: new DateTimeOffset(File.GetLastWriteTimeUtc(file), TimeSpan.Zero),
+                Subject: Path.GetFileNameWithoutExtension(file),
+                Attachments: [attachment]);
+
+            var content = await processor.ProcessAsync(attachment);
+            var classification = await classifier.ClassifyAsync(email, content);
+            await writer.WriteAsync(email, attachment, classification, content);
+            processed++;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
+        {
+            logger.LogWarning("Skipping {File}: {Message}", Path.GetFileName(file), ex.Message);
+        }
+    }
+
+    logger.LogInformation("Done. {Processed}/{Total} imported.", processed, pdfFiles.Count);
 }
 
 // ── Search mode ───────────────────────────────────────────────────────────────
