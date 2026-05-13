@@ -28,8 +28,11 @@ All commands run from the repo root or `PaperClaw/` (the solution directory).
 # Build / typecheck
 dotnet build PaperClaw/PaperClaw.sln
 
-# Run
-dotnet run --project PaperClaw/PaperClaw
+# Ingest — poll IMAP and process new PDFs (default)
+dotnet run --project PaperClaw/PaperClaw -- ingest
+
+# Search — agentic Claude loop over the local library
+dotnet run --project PaperClaw/PaperClaw -- search "invoices from Acme Corp"
 
 # Format (auto-fix)
 dotnet format PaperClaw/PaperClaw.sln

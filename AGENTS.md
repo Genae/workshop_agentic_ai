@@ -28,3 +28,7 @@ Microsoft.Extensions.Logging → stdout
 5. **`TreatWarningsAsErrors` is on.** Every Roslyn warning is a build failure.
    Do not suppress with `#pragma warning disable` unless you add a comment explaining
    exactly why and link a tracking issue.
+
+6. **`search` mode needs only `PAPERCLAW_LIBRARY_PATH` + `ANTHROPIC_API_KEY`.** IMAP
+   vars are ingest-only. Do: use `SearchConfig.LoadFromEnvironment()` in search mode,
+   not `AppConfig.LoadFromEnvironment()`.

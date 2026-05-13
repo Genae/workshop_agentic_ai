@@ -52,6 +52,20 @@ Library/
 
 The `.md` transcript contains the Claude-generated summary, extracted metadata (sender, date, subject), and the full extracted text.
 
+## CLI
+
+| Command | Description |
+|---|---|
+| `dotnet run --project PaperClaw/PaperClaw -- ingest` | Poll IMAP and process new PDFs (default when no args) |
+| `dotnet run --project PaperClaw/PaperClaw -- search <query>` | Search the library using Claude |
+
+The `search` command runs an agentic loop: Claude calls filesystem tools
+(`list_categories`, `list_documents`, `read_document`, `search_library`) until it can
+answer the query, then prints the result to stdout.
+
+`PAPERCLAW_LIBRARY_PATH` and `ANTHROPIC_API_KEY` are the only env vars required for
+`search` mode. IMAP vars are not needed.
+
 ## Configuration
 
 All secrets are supplied via environment variables — never committed.

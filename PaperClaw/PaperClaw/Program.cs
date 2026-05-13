@@ -5,7 +5,98 @@ using Microsoft.Extensions.Logging;
 using PaperClaw;
 
 LoadDotEnv();
-var config = AppConfig.LoadFromEnvironment();
+
+var command = args.Length > 0 ? args[0].ToLowerInvariant() : "ingest";
+
+switch (command)
+{
+    case "ingest":
+        await RunIngestAsync();
+        break;
+
+    case "search":
+        var query = string.Join(" ", args.Skip(1)).Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            Console.Error.WriteLine("Usage: paperclaw search <query>");
+            Environment.Exit(1);
+        }
+
+        await RunSearchAsync(query);
+        break;
+
+    default:
+        Console.Error.WriteLine("Usage: paperclaw [ingest|search <query>]");
+        Console.Error.WriteLine("  ingest         Poll IMAP and process new PDFs (default)");
+        Console.Error.WriteLine("  search <query> Search the library using Claude");
+        Environment.Exit(1);
+        break;
+}
+
+// ── Ingest mode ──────────────────────────────────────────────────────────────
+
+async Task RunIngestAsync()
+{
+    var config = AppConfig.LoadFromEnvironment();
+    using var loggerFactory = LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(config.LogLevel));
+    var logger = loggerFactory.CreateLogger("PaperClaw");
+    var claude = new AnthropicClient();
+
+    var uidStore = new ProcessedUidStore(config.LibraryPath);
+    var processedUids = await uidStore.LoadAsync();
+
+    using var poller = new EmailPoller(config, loggerFactory.CreateLogger<EmailPoller>());
+    var emails = await poller.PollAsync();
+    var newEmails = emails.Where(e => !processedUids.Contains(e.Uid)).ToList();
+
+    var processor = new PdfProcessor(claude, loggerFactory.CreateLogger<PdfProcessor>());
+    var classifier = new Classifier(claude, loggerFactory.CreateLogger<Classifier>());
+    var writer = new LibraryWriter(config.LibraryPath, loggerFactory.CreateLogger<LibraryWriter>());
+
+    var processed = 0;
+    var skipped = emails.Count - newEmails.Count;
+
+    foreach (var email in newEmails)
+    {
+        try
+        {
+            foreach (var attachment in email.Attachments)
+            {
+                var content = await processor.ProcessAsync(attachment);
+                var classification = await classifier.ClassifyAsync(email, content);
+                await writer.WriteAsync(email, attachment, classification, content);
+            }
+
+            await uidStore.AddAsync(email.Uid);
+            processed++;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Skipping UID {Uid}: {Message}", email.Uid, ex.Message);
+        }
+    }
+
+    logger.LogInformation("Done. {Processed} processed, {Skipped} skipped.", processed, skipped);
+}
+
+// ── Search mode ───────────────────────────────────────────────────────────────
+
+async Task RunSearchAsync(string searchQuery)
+{
+    var config = SearchConfig.LoadFromEnvironment();
+    using var loggerFactory = LoggerFactory.Create(b => b.AddConsole().SetMinimumLevel(config.LogLevel));
+    var claude = new AnthropicClient();
+
+    var agent = new SearchAgent(
+        claude,
+        new LibrarySearch(config.LibraryPath),
+        loggerFactory.CreateLogger<SearchAgent>());
+
+    var answer = await agent.SearchAsync(searchQuery);
+    Console.WriteLine(answer);
+}
+
+// ── .env loader ───────────────────────────────────────────────────────────────
 
 // Loads .env from the repo root (or any ancestor directory) into the process environment.
 // Variables already set in the environment take precedence, so this is a no-op in production.
@@ -44,45 +135,3 @@ static void LoadDotEnv()
         dir = dir.Parent;
     }
 }
-
-using var loggerFactory = LoggerFactory.Create(builder =>
-    builder.AddConsole().SetMinimumLevel(config.LogLevel));
-
-var logger = loggerFactory.CreateLogger("PaperClaw");
-
-var claude = new AnthropicClient();
-var uidStore = new ProcessedUidStore(config.LibraryPath);
-var processedUids = await uidStore.LoadAsync();
-
-using var poller = new EmailPoller(config, loggerFactory.CreateLogger<EmailPoller>());
-var emails = await poller.PollAsync();
-var newEmails = emails.Where(e => !processedUids.Contains(e.Uid)).ToList();
-
-var processor = new PdfProcessor(claude, loggerFactory.CreateLogger<PdfProcessor>());
-var classifier = new Classifier(claude, loggerFactory.CreateLogger<Classifier>());
-var writer = new LibraryWriter(config.LibraryPath, loggerFactory.CreateLogger<LibraryWriter>());
-
-var processed = 0;
-var skipped = emails.Count - newEmails.Count;
-
-foreach (var email in newEmails)
-{
-    try
-    {
-        foreach (var attachment in email.Attachments)
-        {
-            var content = await processor.ProcessAsync(attachment);
-            var classification = await classifier.ClassifyAsync(email, content);
-            await writer.WriteAsync(email, attachment, classification, content);
-        }
-
-        await uidStore.AddAsync(email.Uid);
-        processed++;
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning("Skipping UID {Uid}: {Message}", email.Uid, ex.Message);
-    }
-}
-
-logger.LogInformation("Done. {Processed} processed, {Skipped} skipped.", processed, skipped);
