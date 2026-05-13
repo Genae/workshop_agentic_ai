@@ -18,24 +18,44 @@ internal sealed class SearchAgent
         "category. Use the available tools to find and read relevant documents, then answer the " +
         "user's question. Always cite which document(s) you found the information in.";
 
+    private static JsonObject BuildSchema(params (string name, string type, string description)[] props)
+    {
+        var properties = new JsonObject();
+        foreach (var (name, type, description) in props)
+            properties[name] = new JsonObject
+            {
+                ["type"] = JsonValue.Create(type),
+                ["description"] = JsonValue.Create(description),
+            };
+
+        return new JsonObject
+        {
+            ["type"] = "object",
+            ["properties"] = properties,
+            ["required"] = new JsonArray(props.Select(p => (JsonNode?)JsonValue.Create(p.name)).ToArray()),
+        };
+    }
+
     private static readonly List<Anthropic.SDK.Common.Tool> Tools =
     [
         new Function(
             "list_categories",
             "List all document categories in the library",
-            JsonNode.Parse("""{"type":"object","properties":{}}""")),
+            new JsonObject { ["type"] = "object", ["properties"] = new JsonObject() }),
         new Function(
             "list_documents",
             "List all documents in a specific category",
-            JsonNode.Parse("""{"type":"object","properties":{"category":{"type":"string","description":"Category slug"}},"required":["category"]}""")),
+            BuildSchema(("category", "string", "Category slug"))),
         new Function(
             "read_document",
             "Read the full transcript of a specific document",
-            JsonNode.Parse("""{"type":"object","properties":{"category":{"type":"string"},"filename":{"type":"string","description":"Document slug without extension"}},"required":["category","filename"]}""")),
+            BuildSchema(
+                ("category", "string", "Category slug"),
+                ("filename", "string", "Document slug without extension"))),
         new Function(
             "search_library",
             "Full-text search across all document transcripts",
-            JsonNode.Parse("""{"type":"object","properties":{"query":{"type":"string","description":"Text to search for"}},"required":["query"]}""")),
+            BuildSchema(("query", "string", "Text to search for"))),
     ];
 
     private readonly AnthropicClient _claude;

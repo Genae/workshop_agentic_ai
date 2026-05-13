@@ -26,6 +26,8 @@ internal sealed class LibraryWriter
 
         var baseSlug = SlugGenerator.Generate(email.Subject, email.Date, email.Sender);
         var slug = ResolveSlug(categoryDir, baseSlug);
+        if (slug != baseSlug)
+            _logger.LogDebug("Slug collision for '{Base}', resolved to '{Resolved}'", baseSlug, slug);
 
         var pdfPath = Path.Combine(categoryDir, $"{slug}.pdf");
         var mdPath = Path.Combine(categoryDir, $"{slug}.md");

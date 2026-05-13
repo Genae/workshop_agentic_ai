@@ -11,6 +11,8 @@ namespace PaperClaw;
 
 internal sealed class PdfProcessor
 {
+    private const int MaxVisionBytes = 20 * 1024 * 1024; // 20 MB — well within Claude API's 32 MB PDF limit
+
     private const string VisionSystemPrompt =
         "You are a document transcription assistant. Extract all text content from the " +
         "provided PDF document as accurately as possible. Preserve the logical reading order. " +
@@ -42,6 +44,11 @@ internal sealed class PdfProcessor
         {
             _logger.LogWarning("PdfPig failed for {FileName}: {Message}", attachment.FileName, ex.Message);
         }
+
+        if (attachment.Bytes.Length > MaxVisionBytes)
+            throw new InvalidOperationException(
+                $"PDF '{attachment.FileName}' is {attachment.Bytes.Length / 1024 / 1024} MB " +
+                $"— exceeds the {MaxVisionBytes / 1024 / 1024} MB vision limit.");
 
         _logger.LogInformation("Vision fallback for {FileName}", attachment.FileName);
         var visionText = await ExtractViaVisionAsync(attachment.Bytes);

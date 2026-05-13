@@ -70,7 +70,7 @@ async Task RunIngestAsync()
             await uidStore.AddAsync(email.Uid);
             processed++;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
         {
             logger.LogWarning("Skipping UID {Uid}: {Message}", email.Uid, ex.Message);
         }
