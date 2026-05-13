@@ -123,12 +123,24 @@ async Task RunImportAsync(string path)
         return;
     }
 
+    var hashStore = new ImportedHashStore(config.LibraryPath);
+    var seenHashes = await hashStore.LoadAsync();
+
     var processed = 0;
+    var skipped = 0;
     foreach (var file in pdfFiles)
     {
         try
         {
             var bytes = await File.ReadAllBytesAsync(file);
+            var hash = ImportedHashStore.ComputeHash(bytes);
+            if (!seenHashes.Add(hash))
+            {
+                logger.LogInformation("Skipping {File} (already imported)", Path.GetFileName(file));
+                skipped++;
+                continue;
+            }
+
             var attachment = new PdfAttachment(Path.GetFileName(file), bytes);
             var email = new EmailMessage(
                 Uid: 0,
@@ -140,6 +152,7 @@ async Task RunImportAsync(string path)
             var content = await processor.ProcessAsync(attachment);
             var classification = await classifier.ClassifyAsync(email, content);
             await writer.WriteAsync(email, attachment, classification, content);
+            await hashStore.AddAsync(hash);
             processed++;
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException)
@@ -148,7 +161,7 @@ async Task RunImportAsync(string path)
         }
     }
 
-    logger.LogInformation("Done. {Processed}/{Total} imported.", processed, pdfFiles.Count);
+    logger.LogInformation("Done. {Processed} imported, {Skipped} skipped.", processed, skipped);
 }
 
 // ── Search mode ───────────────────────────────────────────────────────────────
