@@ -1,2 +1,5 @@
 # Track .md transcripts but not the PDFs themselves (can be large / sensitive)
 *.pdf
+
+# Processed email UID journal — local state, not for version control
+.processed-uids

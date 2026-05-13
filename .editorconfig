@@ -21,3 +21,7 @@ dotnet_diagnostic.IDE0052.severity = warning
 
 # Suppress CA2007 (ConfigureAwait) — not needed in application code
 dotnet_diagnostic.CA2007.severity = none
+
+# Suppress CA1848/CA1873 — LoggerMessage source generators are overkill for a single-shot CLI
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
